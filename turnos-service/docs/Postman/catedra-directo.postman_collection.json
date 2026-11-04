@@ -1,0 +1,362 @@
+{
+  "info": {
+    "name": "Catedra - servidor de los profesores (directo)",
+    "description": "Prueba directa del servicio de la catedra segun INTEGRATION_REFERENCE-v2. Completar la variable password (Current value). El JWT tecnico se guarda solo al hacer Login. Nunca exportar esta coleccion con el token adentro.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{catedraToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "catedraUrl",
+      "value": "http://192.168.194.250:8090"
+    },
+    {
+      "key": "login",
+      "value": "aguscapo"
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "catedraToken",
+      "value": ""
+    },
+    {
+      "key": "professionalId",
+      "value": "218"
+    },
+    {
+      "key": "date",
+      "value": "2026-10-26"
+    },
+    {
+      "key": "startTime",
+      "value": "09:00"
+    },
+    {
+      "key": "externalPatientId",
+      "value": "prueba-postman-1"
+    },
+    {
+      "key": "holdId",
+      "value": ""
+    },
+    {
+      "key": "reservationProcessId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Cuenta tecnica",
+      "item": [
+        {
+          "name": "Login tecnico (guarda el token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/authenticate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{login}}\",\n  \"password\": \"{{password}}\",\n  \"rememberMe\": true\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('catedraToken', pm.response.json().id_token);",
+                  "console.log('Token tecnico guardado');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Integracion actual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{catedraUrl}}/api/student/integration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Catalogo",
+      "item": [
+        {
+          "name": "Snapshot del catalogo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{catedraUrl}}/api/synchronization/snapshot"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Reserva (REST)",
+      "item": [
+        {
+          "name": "Ocupaciones del dia",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catedraUrl}}/api/appointment-occupancies?professionalId={{professionalId}}&from={{date}}&to={{date}}",
+              "host": [
+                "{{catedraUrl}}"
+              ],
+              "path": [
+                "api",
+                "appointment-occupancies"
+              ],
+              "query": [
+                {
+                  "key": "professionalId",
+                  "value": "{{professionalId}}"
+                },
+                {
+                  "key": "from",
+                  "value": "{{date}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{date}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear hold (guarda holdId y processId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointment-holds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professionalId\": {{professionalId}},\n  \"date\": \"{{date}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"externalPatientId\": \"{{externalPatientId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.collectionVariables.set('holdId', r.holdId);",
+                  "pm.collectionVariables.set('reservationProcessId', r.reservationProcessId);",
+                  "console.log('holdId', r.holdId, 'process', r.reservationProcessId, 'vence', r.expiresAt);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirmar hold (inicia el pedido de telefono por Kafka)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointment-holds/{{holdId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalPatientId\": \"{{externalPatientId}}\",\n  \"patientFirstName\": \"Agustina\",\n  \"patientLastName\": \"Capo\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 Accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar reservas de este paciente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catedraUrl}}/api/appointments?externalPatientId={{externalPatientId}}&page=0&size=20",
+              "host": [
+                "{{catedraUrl}}"
+              ],
+              "path": [
+                "api",
+                "appointments"
+              ],
+              "query": [
+                {
+                  "key": "externalPatientId",
+                  "value": "{{externalPatientId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancelar reserva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointments/{{reservationProcessId}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Prueba desde Postman\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Errores del contrato (deben fallar)",
+      "item": [
+        {
+          "name": "Hold sobre el mismo turno -> 409 SLOT_ALREADY_HELD",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointment-holds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professionalId\": {{professionalId}},\n  \"date\": \"{{date}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"externalPatientId\": \"otro-paciente\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Hold en horario fuera de agenda -> 400 INVALID_SLOT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointment-holds",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professionalId\": {{professionalId}},\n  \"date\": \"{{date}}\",\n  \"startTime\": \"03:17\",\n  \"externalPatientId\": \"{{externalPatientId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Confirmar con otro paciente -> 400 EXTERNAL_PATIENT_MISMATCH",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{catedraUrl}}/api/appointment-holds/{{holdId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"externalPatientId\": \"otro-paciente\",\n  \"patientFirstName\": \"Otro\",\n  \"patientLastName\": \"Paciente\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Ocupaciones con from > to -> 400 INVALID_DATE_RANGE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catedraUrl}}/api/appointment-occupancies?professionalId={{professionalId}}&from=2026-12-31&to=2026-12-01",
+              "host": [
+                "{{catedraUrl}}"
+              ],
+              "path": [
+                "api",
+                "appointment-occupancies"
+              ],
+              "query": [
+                {
+                  "key": "professionalId",
+                  "value": "{{professionalId}}"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-01"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sin token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{catedraUrl}}/api/appointments",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

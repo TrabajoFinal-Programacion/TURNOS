@@ -1,0 +1,103 @@
+# Configuracion del servicio de turnos.
+# Todo valor sensible o dependiente del entorno se toma de variables de entorno.
+# No hay secretos ni direcciones reales en este archivo.
+
+server:
+  port: ${SERVER_PORT:8082}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: turnos-service
+  datasource:
+    url: ${TURNOS_DB_URL:jdbc:mysql://localhost:3306/turnos}
+    username: ${TURNOS_DB_USER:turnos}
+    password: ${TURNOS_DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none # el esquema lo administra Flyway
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+  mvc:
+    problemdetails:
+      enabled: true
+
+  # --- Kafka de la catedra ---
+  kafka:
+    bootstrap-servers: ${CATEDRA_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    listener:
+      # El offset se confirma despues de procesar cada mensaje (y de que la transaccion local termino).
+      ack-mode: record
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  catedra:
+    api-url: ${CATEDRA_API_URL:}
+    token: ${CATEDRA_TOKEN:}
+    group-id: ${CATEDRA_GROUP_ID:}
+    kafka-actions-topic: ${CATEDRA_KAFKA_ACTIONS_TOPIC:alumnos.turnos.acciones.${app.catedra.group-id}}
+    kafka-phone-topic: ${CATEDRA_KAFKA_PHONE_TOPIC:catedra.turnos.telefono.${app.catedra.group-id}}
+    # Grupo propio de turnos; catalogo usa alumnos-{groupId}. Se puede sobrescribir si la catedra lo exige.
+    kafka-consumer-group: ${CATEDRA_KAFKA_TURNOS_CONSUMER_GROUP:alumnos-${app.catedra.group-id}-turnos}
+    connect-timeout: ${CATEDRA_CONNECT_TIMEOUT:PT3S}
+    read-timeout: ${CATEDRA_READ_TIMEOUT:PT10S}
+    max-attempts: ${CATEDRA_MAX_ATTEMPTS:3}
+    retry-backoff: ${CATEDRA_RETRY_BACKOFF:PT1S}
+  catalogo:
+    base-url: ${CATALOGO_BASE_URL:http://localhost:8081}
+    connect-timeout: ${CATALOGO_CONNECT_TIMEOUT:PT2S}
+    read-timeout: ${CATALOGO_READ_TIMEOUT:PT5S}
+    max-attempts: ${CATALOGO_MAX_ATTEMPTS:2}
+  reservations:
+    zone: ${RESERVATIONS_ZONE:America/Argentina/Mendoza}
+    max-days-ahead: ${RESERVATIONS_MAX_DAYS_AHEAD:90}
+    recovery-enabled: ${RESERVATIONS_RECOVERY_ENABLED:true}
+    recovery-initial-delay: ${RESERVATIONS_RECOVERY_INITIAL_DELAY:PT10S}
+    recovery-interval: ${RESERVATIONS_RECOVERY_INTERVAL:PT30S}
+    stale-after: ${RESERVATIONS_STALE_AFTER:PT30S}
+    expiration-grace: ${RESERVATIONS_EXPIRATION_GRACE:PT2M}
+    kafka-send-timeout: ${RESERVATIONS_KAFKA_SEND_TIMEOUT:PT10S}
+  security:
+    jwt:
+      # El servicio de turnos es el emisor de los JWT de usuario final.
+      issuer: ${JWT_ISSUER:turnos-service}
+      audience: ${JWT_AUDIENCE:turnos-app}
+      private-key-location: ${JWT_PRIVATE_KEY_LOCATION:file:./deploy/secrets/jwt-private.pem}
+      public-key-location: ${JWT_PUBLIC_KEY_LOCATION:file:./deploy/secrets/jwt-public.pem}
+      token-validity: ${JWT_TOKEN_VALIDITY:PT24H}
+      token-validity-remember-me: ${JWT_TOKEN_VALIDITY_REMEMBER_ME:P30D}
+    cors:
+      # Lista separada por comas. Vacia = sin CORS (la app Android no lo necesita).
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+logging:
+  level:
+    root: INFO
+    ar.edu.um.turnos: INFO

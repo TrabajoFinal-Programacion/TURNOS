@@ -1,0 +1,409 @@
+{
+  "info": {
+    "name": "Proyecto turnos",
+    "description": "Pruebas manuales de turnos-service y catalogo-service. Orden: 1) Registrar usuario (una vez), 2) Login (guarda el token solo), y despues cualquier pedido. Iniciar reserva guarda reservationId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "turnosUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "catalogoUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "login",
+      "value": "ana"
+    },
+    {
+      "key": "password",
+      "value": "secreto123"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "professionalId",
+      "value": "218"
+    },
+    {
+      "key": "date",
+      "value": "2026-10-26"
+    },
+    {
+      "key": "startTime",
+      "value": "09:00"
+    },
+    {
+      "key": "reservationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Usuario",
+      "item": [
+        {
+          "name": "Registrar usuario (una vez)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{turnosUrl}}/api/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{login}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Ana\",\n  \"lastName\": \"Gomez\",\n  \"email\": \"ana@example.com\",\n  \"langKey\": \"es\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login (guarda el token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{turnosUrl}}/api/authenticate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{login}}\",\n  \"password\": \"{{password}}\",\n  \"rememberMe\": false\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token', pm.response.json().id_token);",
+                  "console.log('Token guardado en la variable token');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mi cuenta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{turnosUrl}}/api/account"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Catalogo",
+      "item": [
+        {
+          "name": "Estado de sincronizacion",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{catalogoUrl}}/api/sync/status"
+          }
+        },
+        {
+          "name": "Categorias",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogoUrl}}/api/categories?enabled=true",
+              "host": [
+                "{{catalogoUrl}}"
+              ],
+              "path": [
+                "api",
+                "categories"
+              ],
+              "query": [
+                {
+                  "key": "enabled",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar profesionales (filtros)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogoUrl}}/api/professionals?categoryId=103&name=acos&enabled=true&dayOfWeek=MONDAY&date={{date}}&from=09:00&to=12:00&page=0&size=20",
+              "host": [
+                "{{catalogoUrl}}"
+              ],
+              "path": [
+                "api",
+                "professionals"
+              ],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "103",
+                  "disabled": true
+                },
+                {
+                  "key": "name",
+                  "value": "acos",
+                  "disabled": true
+                },
+                {
+                  "key": "enabled",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "dayOfWeek",
+                  "value": "MONDAY",
+                  "disabled": true
+                },
+                {
+                  "key": "date",
+                  "value": "{{date}}",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "09:00",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "12:00",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Tilda los filtros que quieras probar en la pestania Params."
+          }
+        },
+        {
+          "name": "Profesional con agenda",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{catalogoUrl}}/api/professionals/{{professionalId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Turnos y reservas",
+      "item": [
+        {
+          "name": "Disponibilidad",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{turnosUrl}}/api/availability?professionalId={{professionalId}}&date={{date}}",
+              "host": [
+                "{{turnosUrl}}"
+              ],
+              "path": [
+                "api",
+                "availability"
+              ],
+              "query": [
+                {
+                  "key": "professionalId",
+                  "value": "{{professionalId}}",
+                  "disabled": false
+                },
+                {
+                  "key": "date",
+                  "value": "{{date}}",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Iniciar reserva (guarda reservationId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{turnosUrl}}/api/reservations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"professionalId\": {{professionalId}},\n  \"date\": \"{{date}}\",\n  \"startTime\": \"{{startTime}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('reservationId', pm.response.json().id);",
+                  "console.log('reservationId =', pm.response.json().id, 'estado =', pm.response.json().status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver reserva (consultar estado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{turnosUrl}}/api/reservations/{{reservationId}}"
+          }
+        },
+        {
+          "name": "Enviar telefono",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{turnosUrl}}/api/reservations/{{reservationId}}/phone",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+5492615551234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mis reservas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{turnosUrl}}/api/reservations?status=CONFIRMED&page=0&size=20",
+              "host": [
+                "{{turnosUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "CONFIRMED",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancelar reserva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{turnosUrl}}/api/reservations/{{reservationId}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Cambio solicitado por el usuario\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Sincronizar mis reservas con la catedra",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{turnosUrl}}/api/reservations/sync"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Seguridad (deben fallar)",
+      "item": [
+        {
+          "name": "Sin token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{turnosUrl}}/api/reservations",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Forzar sync sin ser admin -> 403",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{catalogoUrl}}/api/sync/full"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# Build
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Secretos y configuracion local: NUNCA se suben al repositorio
+.env
+secrets/
+deploy/secrets/
+*.pem
+!src/test/resources/test-keys/*.pem

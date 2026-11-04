@@ -1,0 +1,117 @@
+# Infraestructura local del proyecto.
+# Requiere los dos repositorios clonados uno al lado del otro:
+#   <carpeta>/turnos-service    (este repo; el compose esta en deploy/)
+#   <carpeta>/catalogo-service
+#
+# Uso:  cd turnos-service/deploy
+#       ./generate-keys.sh          (una sola vez)
+#       cp .env.example .env        (y completar)
+#       docker compose up -d --build
+#
+# Separacion de datos: cada servicio tiene su propio motor, su propio contenedor,
+# su propio usuario y sus propias migraciones. Ningun servicio conoce las credenciales del otro.
+
+name: turnos
+
+services:
+  catalogo-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: catalogo
+      POSTGRES_USER: catalogo
+      POSTGRES_PASSWORD: ${CATALOGO_DB_PASSWORD:?definir CATALOGO_DB_PASSWORD en .env}
+    volumes:
+      - catalogo-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catalogo -d catalogo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  turnos-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: turnos
+      MYSQL_USER: turnos
+      MYSQL_PASSWORD: ${TURNOS_DB_PASSWORD:?definir TURNOS_DB_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${TURNOS_DB_ROOT_PASSWORD:?definir TURNOS_DB_ROOT_PASSWORD en .env}
+    volumes:
+      - turnos-db-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  catalogo-service:
+    build: ../../catalogo-service
+    depends_on:
+      catalogo-db:
+        condition: service_healthy
+    environment:
+      CATALOGO_DB_URL: jdbc:postgresql://catalogo-db:5432/catalogo
+      CATALOGO_DB_USER: catalogo
+      CATALOGO_DB_PASSWORD: ${CATALOGO_DB_PASSWORD}
+      JWT_ISSUER: ${JWT_ISSUER:-turnos-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-turnos-app}
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # Integracion con la catedra (valores de "integration" de la cuenta tecnica)
+      CATEDRA_API_URL: ${CATEDRA_API_URL}
+      CATEDRA_TOKEN: ${CATEDRA_TOKEN}
+      CATEDRA_GROUP_ID: ${CATEDRA_GROUP_ID}
+      CATEDRA_REDIS_HOST: ${CATEDRA_REDIS_HOST}
+      CATEDRA_REDIS_PORT: ${CATEDRA_REDIS_PORT}
+      CATEDRA_REDIS_USERNAME: ${CATEDRA_REDIS_USERNAME}
+      CATEDRA_REDIS_PASSWORD: ${CATEDRA_REDIS_PASSWORD}
+      CATEDRA_KAFKA_BOOTSTRAP_SERVERS: ${CATEDRA_KAFKA_BOOTSTRAP_SERVERS}
+      SYNC_RECONCILE_INTERVAL: ${SYNC_RECONCILE_INTERVAL:-PT60S}
+    secrets:
+      - jwt_public_key          # catalogo solo puede validar tokens, no emitirlos
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+  turnos-service:
+    build: ..
+    depends_on:
+      turnos-db:
+        condition: service_healthy
+      catalogo-service:
+        condition: service_started
+    environment:
+      TURNOS_DB_URL: jdbc:mysql://turnos-db:3306/turnos
+      TURNOS_DB_USER: turnos
+      TURNOS_DB_PASSWORD: ${TURNOS_DB_PASSWORD}
+      JWT_ISSUER: ${JWT_ISSUER:-turnos-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-turnos-app}
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt_private_key
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt_public_key
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      CATALOGO_BASE_URL: http://catalogo-service:8081
+      # Integracion con la catedra (misma cuenta tecnica que catalogo)
+      CATEDRA_API_URL: ${CATEDRA_API_URL}
+      CATEDRA_TOKEN: ${CATEDRA_TOKEN}
+      CATEDRA_GROUP_ID: ${CATEDRA_GROUP_ID}
+      CATEDRA_KAFKA_BOOTSTRAP_SERVERS: ${CATEDRA_KAFKA_BOOTSTRAP_SERVERS}
+      RESERVATIONS_ZONE: ${RESERVATIONS_ZONE:-America/Argentina/Mendoza}
+    secrets:
+      - jwt_private_key
+      - jwt_public_key
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
+secrets:
+  jwt_private_key:
+    file: ./secrets/jwt-private.pem
+  jwt_public_key:
+    file: ./secrets/jwt-public.pem
+
+volumes:
+  catalogo-db-data:
+  turnos-db-data:

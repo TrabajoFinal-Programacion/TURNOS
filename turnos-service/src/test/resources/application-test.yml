@@ -1,0 +1,28 @@
+# Perfil de tests: claves RSA de prueba, MySQL y Kafka de Testcontainers.
+# La API REST de la catedra y el servicio de catalogo se reemplazan por mocks.
+app:
+  security:
+    jwt:
+      issuer: turnos-service
+      audience: turnos-app
+      private-key-location: classpath:test-keys/test-private.pem
+      public-key-location: classpath:test-keys/test-public.pem
+      token-validity: PT1H
+      token-validity-remember-me: P30D
+  catedra:
+    api-url: http://localhost:1
+    token: token-de-prueba
+    group-id: test-group
+    kafka-actions-topic: alumnos.turnos.acciones.test-group
+    kafka-phone-topic: catedra.turnos.telefono.test-group
+    kafka-consumer-group: alumnos-test-group-turnos
+    max-attempts: 1
+    retry-backoff: PT0.01S
+  catalogo:
+    base-url: http://localhost:1
+  reservations:
+    zone: America/Argentina/Mendoza
+    # Los tests ejecutan la recuperacion a mano.
+    recovery-enabled: false
+    stale-after: PT0S
+    expiration-grace: PT0S
